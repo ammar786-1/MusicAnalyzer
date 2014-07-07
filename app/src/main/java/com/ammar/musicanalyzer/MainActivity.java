@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.media.MediaMetadataRetriever;
+import android.media.RemoteControlClient;
 import android.media.RemoteController;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -17,111 +18,124 @@ import android.widget.TextView;
 
 public class MainActivity extends Activity {
 
-    protected TextView mArtistText;
-    protected TextView mTitleText;
-    protected TextView mAlbumText;
-    protected MyRemoteControlService mRCService;
-    protected boolean mBound = false; //flag indicating if service is bound to Activity
+	private static final String TAG = "MainActivity";
+	protected TextView mArtistText;
+	protected TextView mTitleText;
+	protected TextView mAlbumText;
+	protected TextView mTimeText;
+	protected MyRemoteControlService mRCService;
+	protected boolean mBound = false; //flag indicating if service is bound to Activity
 
-    private RemoteController.OnClientUpdateListener mClientUpdateListener = new RemoteController.OnClientUpdateListener() {
+	private RemoteController.OnClientUpdateListener mClientUpdateListener = new RemoteController.OnClientUpdateListener() {
 
-        @Override
-        public void onClientTransportControlUpdate(int transportControlFlags) {
+		@Override
+		public void onClientTransportControlUpdate(int transportControlFlags) {
 
-        }
+		}
 
-        @Override
-        public void onClientPlaybackStateUpdate(int state, long stateChangeTimeMs, long currentPosMs, float speed) {
+		@Override
+		public void onClientPlaybackStateUpdate(int state, long stateChangeTimeMs, long currentPosMs, float speed) {
 
-        }
+			switch (state) {
 
-        @Override
-        public void onClientPlaybackStateUpdate(int state) {
+				case RemoteControlClient.PLAYSTATE_PLAYING:
+					Log.d(TAG + " Playback State", "Playing");
+					break;
+				case RemoteControlClient.PLAYSTATE_PAUSED:
+					Log.d(TAG + " Playback State", "Paused");
+					break;
+			}
 
-        }
+			mTimeText.setText("State: " + state + " stateChangeTimeMs: " + stateChangeTimeMs + " currentPosMs: " + currentPosMs + " speed: " + speed);
+		}
 
-        @Override
-        public void onClientMetadataUpdate(RemoteController.MetadataEditor editor) {
+		@Override
+		public void onClientPlaybackStateUpdate(int state) {
 
-            Log.d("ACtivity", "onClientMetadataUpdate called");
+		}
 
-            //some players write artist name to METADATA_KEY_ALBUMARTIST instead of METADATA_KEY_ARTIST, so we should double-check it
-            mArtistText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_ARTIST,
-                    editor.getString(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST, getString(R.string.unknown))
-            ));
+		@Override
+		public void onClientMetadataUpdate(RemoteController.MetadataEditor editor) {
 
-            mTitleText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_TITLE, getString(R.string.unknown)));
-            mAlbumText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_ALBUM, getString(R.string.unknown)));
-        }
+			//some players write artist name to METADATA_KEY_ALBUMARTIST instead of METADATA_KEY_ARTIST, so we should double-check it
+			mArtistText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_ARTIST,
+					editor.getString(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST, getString(R.string.unknown))
+			));
 
-        @Override
-        public void onClientChange(boolean clearing) {
+			mTitleText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_TITLE, getString(R.string.unknown)));
+			mAlbumText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_ALBUM, getString(R.string.unknown)));
+		}
 
-        }
-    };
+		@Override
+		public void onClientChange(boolean clearing) {
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+		}
+	};
 
-        mTitleText = (TextView)findViewById(R.id.title_text);
-        mAlbumText = (TextView)findViewById(R.id.album_text);
-        mArtistText = (TextView)findViewById(R.id.artist_text);
-    }
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
 
-    @Override
-    public void onStart() {
-        super.onStart();
-        Intent intent = new Intent("com.ammar.musicanalyzer.BIND_RC_CONTROL_SERVICE");
-        bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
-    }
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_main);
 
-    @Override
-    public void onStop() {
-        super.onStop();
-        if(mBound) {
-            mRCService.setRemoteControllerDisabled();
-        }
-        unbindService(mConnection);
-    }
+		mTitleText = (TextView) findViewById(R.id.title_text);
+		mAlbumText = (TextView) findViewById(R.id.album_text);
+		mArtistText = (TextView) findViewById(R.id.artist_text);
+		mTimeText = (TextView) findViewById(R.id.time_text);
+	}
 
+	@Override
+	public void onStart() {
 
-    private ServiceConnection mConnection = new ServiceConnection() {
+		super.onStart();
+		Intent intent = new Intent("com.ammar.musicanalyzer.BIND_RC_CONTROL_SERVICE");
+		bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
+	}
 
-        @Override
-        public void onServiceConnected(ComponentName className, IBinder service) {
-            //Getting the binder and activating RemoteController instantly
-            MyRemoteControlService.RCBinder binder = (MyRemoteControlService.RCBinder) service;
-            mRCService = binder.getService();
-            mRCService.setRemoteControllerEnabled();
-            mRCService.setClientUpdateListener(mClientUpdateListener);
-            mBound = true;
-        }
+	@Override
+	public void onStop() {
 
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            mBound = false;
-        }
-    };
+		super.onStop();
+		if (mBound) {
+			mRCService.setRemoteControllerDisabled();
+		}
+		unbindService(mConnection);
+	}
 
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.main, menu);
-        return true;
-    }
+	private ServiceConnection mConnection = new ServiceConnection() {
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-        if (id == R.id.action_settings) {
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
+		@Override
+		public void onServiceConnected(ComponentName className, IBinder service) {
+			//Getting the binder and activating RemoteController instantly
+			MyRemoteControlService.RCBinder binder = (MyRemoteControlService.RCBinder) service;
+			mRCService = binder.getService();
+			mRCService.setRemoteControllerEnabled();
+			mRCService.setClientUpdateListener(mClientUpdateListener);
+			mBound = true;
+		}
+
+		@Override
+		public void onServiceDisconnected(ComponentName name) {
+
+			mBound = false;
+		}
+	};
+
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		// Inflate the menu; this adds items to the action bar if it is present.
+		getMenuInflater().inflate(R.menu.main, menu);
+		return true;
+	}
+
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		// Handle action bar item clicks here. The action bar will
+		// automatically handle clicks on the Home/Up button, so long
+		// as you specify a parent activity in AndroidManifest.xml.
+		int id = item.getItemId();
+		return id == R.id.action_settings || super.onOptionsItemSelected(item);
+	}
 }
