@@ -10,67 +10,97 @@ import android.media.RemoteControlClient;
 import android.media.RemoteController;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
 
+import java.util.Date;
+
 
 public class MainActivity extends Activity {
 
 	private static final String TAG = "MainActivity";
+    protected RecyclerView mRecyclerView;
 	protected TextView mArtistText;
 	protected TextView mTitleText;
 	protected TextView mAlbumText;
-	protected TextView mTimeText;
+	protected TextView mStatusText;
+
+    protected LinearLayoutManager mLayoutManager;
+
 	protected MyRemoteControlService mRCService;
 	protected boolean mBound = false; //flag indicating if service is bound to Activity
 
-	private RemoteController.OnClientUpdateListener mClientUpdateListener = new RemoteController.OnClientUpdateListener() {
+    private boolean playing;
+    private long lastPosMs = 0;
+    private RemoteController.OnClientUpdateListener mClientUpdateListener = new RemoteController.OnClientUpdateListener() {
 
-		@Override
-		public void onClientTransportControlUpdate(int transportControlFlags) {
+        @Override
+        public void onClientTransportControlUpdate(int transportControlFlags) {
 
-		}
+        }
 
-		@Override
-		public void onClientPlaybackStateUpdate(int state, long stateChangeTimeMs, long currentPosMs, float speed) {
+        @Override
+        public void onClientPlaybackStateUpdate(int state, long stateChangeTimeMs, long currentPosMs, float speed) {
 
-			switch (state) {
+            String stateString = "Unknown";
 
-				case RemoteControlClient.PLAYSTATE_PLAYING:
-					Log.d(TAG + " Playback State", "Playing");
-					break;
-				case RemoteControlClient.PLAYSTATE_PAUSED:
-					Log.d(TAG + " Playback State", "Paused");
-					break;
-			}
+            switch (state) {
 
-			mTimeText.setText("State: " + state + " stateChangeTimeMs: " + stateChangeTimeMs + " currentPosMs: " + currentPosMs + " speed: " + speed);
-		}
+                case RemoteControlClient.PLAYSTATE_PLAYING:
+                    stateString = "Playing";
+                    playing = true;
+                    Log.d(TAG + " Playback State", "Playing");
+                    break;
+                case RemoteControlClient.PLAYSTATE_PAUSED:
+                    stateString = "Paused";
+                    playing = false;
+                    Log.d(TAG + " Playback State", "Paused");
+                    break;
+                default:
+                    playing = false;
+                    break;
+            }
 
-		@Override
-		public void onClientPlaybackStateUpdate(int state) {
+            long timeElapsed;
 
-		}
+            if (playing)
+            {
+                lastPosMs = currentPosMs;
+                mStatusText.setText("Playing started at: " + new Date(stateChangeTimeMs) + ". Current Position is: " + currentPosMs/1000 + " sec.");
+            }
+            else
+            {
+                timeElapsed = currentPosMs - lastPosMs;
+                mStatusText.setText("Playing stopped at: " + new Date(stateChangeTimeMs) + ". Length played: " + timeElapsed/1000 + " sec.");
+            }
+        }
 
-		@Override
-		public void onClientMetadataUpdate(RemoteController.MetadataEditor editor) {
+        @Override
+        public void onClientPlaybackStateUpdate(int state) {
 
-			//some players write artist name to METADATA_KEY_ALBUMARTIST instead of METADATA_KEY_ARTIST, so we should double-check it
-			mArtistText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_ARTIST,
-					editor.getString(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST, getString(R.string.unknown))
-			));
+        }
 
-			mTitleText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_TITLE, getString(R.string.unknown)));
-			mAlbumText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_ALBUM, getString(R.string.unknown)));
-		}
+        @Override
+        public void onClientMetadataUpdate(RemoteController.MetadataEditor editor) {
 
-		@Override
-		public void onClientChange(boolean clearing) {
+            //some players write artist name to METADATA_KEY_ALBUMARTIST instead of METADATA_KEY_ARTIST, so we should double-check it
+            mArtistText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_ARTIST,
+                    editor.getString(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST, getString(R.string.unknown))
+            ));
 
-		}
-	};
+            mTitleText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_TITLE, getString(R.string.unknown)));
+            mAlbumText.setText(editor.getString(MediaMetadataRetriever.METADATA_KEY_ALBUM, getString(R.string.unknown)));
+        }
+
+        @Override
+        public void onClientChange(boolean clearing) {
+
+        }
+    };
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -78,10 +108,17 @@ public class MainActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
+        mRecyclerView = (RecyclerView) findViewById(R.id.my_recycler_view);
+        mRecyclerView.setHasFixedSize(true);
+
+        // use a linear layout manager
+        mLayoutManager = new LinearLayoutManager(this);
+        mRecyclerView.setLayoutManager(mLayoutManager);
+
 		mTitleText = (TextView) findViewById(R.id.title_text);
 		mAlbumText = (TextView) findViewById(R.id.album_text);
 		mArtistText = (TextView) findViewById(R.id.artist_text);
-		mTimeText = (TextView) findViewById(R.id.time_text);
+		mStatusText = (TextView) findViewById(R.id.status_text);
 	}
 
 	@Override
